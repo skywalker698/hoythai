@@ -1,1 +1,355 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Lucky Draw — มนต์ขลังแห่งโชค</title>
+<meta name="theme-color" content="#14143f">
+<meta name="description" content="ระบบจับสลาก/ลอตเตอรี่ที่โปร่งใส ตรวจสอบได้">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Lucky Draw">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<style>
+  :root{
+    --night:#0e0e32; --indigo:#14143f; --violet:#3b2a8a; --glow:#8b6cff;
+    --gold:#e8c36a; --gold-d:#b98d2e; --ivory:#f6f0df; --mist:#b9b5d6;
+    --sat:env(safe-area-inset-top,0px); --sab:env(safe-area-inset-bottom,0px);
+    --sal:env(safe-area-inset-left,0px); --sar:env(safe-area-inset-right,0px);
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;height:100%;width:100%;background:var(--night);overflow:hidden;overscroll-behavior:none;
+    font-family:"Sarabun","Noto Sans Thai",system-ui,-apple-system,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased;color:var(--ivory)}
+  button{font-family:inherit;touch-action:manipulation}
+  :focus-visible{outline:3px solid var(--gold);outline-offset:2px}
 
+  /* ---------- App shell ---------- */
+  #app{position:fixed;inset:0;height:100vh;height:100dvh;display:flex;flex-direction:column;background:var(--night);padding-left:var(--sal);padding-right:var(--sar)}
+  #bar{flex:none;display:flex;align-items:center;gap:10px;padding:calc(8px + var(--sat)) 12px 8px;z-index:5;
+    background:linear-gradient(180deg,#1d1856 0%,var(--indigo) 100%);border-bottom:1px solid rgba(232,195,106,.45);box-shadow:0 4px 18px rgba(0,0,0,.35)}
+  #bar img{width:40px;height:40px;border-radius:12px;box-shadow:0 0 0 1px rgba(232,195,106,.6),0 0 14px rgba(139,108,255,.55)}
+  #bar .t{flex:1;min-width:0;line-height:1.2}
+  #bar .t b{display:block;font-size:17px;font-weight:700;letter-spacing:.2px;color:var(--gold);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #bar .t small{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--mist)}
+  #dot{width:8px;height:8px;border-radius:50%;background:#7ee2b0;box-shadow:0 0 0 3px rgba(126,226,176,.25)}
+  body.off #dot{background:#ff8a8a;box-shadow:0 0 0 3px rgba(255,138,138,.25)}
+  .ib{flex:none;width:44px;height:44px;border:1px solid rgba(232,195,106,.35);border-radius:13px;background:rgba(255,255,255,.07);color:var(--gold);display:grid;place-items:center;cursor:pointer;transition:transform .1s,background .2s}
+  .ib:active{transform:scale(.92);background:rgba(232,195,106,.22)}
+  .ib svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+  .ib.spin svg{animation:spin .8s linear}
+  #btn-inst-top{display:none}
+  body.can-install #btn-inst-top{display:grid}
+  #stage{position:relative;flex:1;min-height:0;background:var(--night)}
+  #frame{position:absolute;inset:0;width:100%;height:100%;border:0;display:block;opacity:0;transition:opacity .5s ease;background:#fff}
+  #frame.on{opacity:1}
+  #app::after{content:"";flex:none;height:var(--sab);background:var(--night)}
+
+  /* ---------- Starfield (ใช้ร่วมกันทุกหน้าจอเต็ม) ---------- */
+  .sky{background:
+    radial-gradient(circle at 50% 28%,rgba(139,108,255,.38) 0%,transparent 52%),
+    radial-gradient(circle at 20% 85%,rgba(232,195,106,.10) 0%,transparent 40%),
+    linear-gradient(180deg,#1a1650 0%,var(--night) 70%)}
+  .stars{position:absolute;inset:0;overflow:hidden;pointer-events:none}
+  .stars i{position:absolute;width:3px;height:3px;border-radius:50%;background:#ffeab0;box-shadow:0 0 6px 1px rgba(255,234,176,.7);opacity:.2;animation:tw 3.2s ease-in-out infinite}
+
+  /* ---------- Splash ---------- */
+  #splash{position:fixed;inset:0;z-index:50;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;text-align:center;padding:24px;transition:opacity .6s ease,visibility .6s}
+  #splash.out{opacity:0;visibility:hidden;pointer-events:none}
+  .orb{position:relative;width:150px;height:150px;display:grid;place-items:center}
+  .orb::before{content:"";position:absolute;inset:-10px;border-radius:50%;border:1px dashed rgba(232,195,106,.55);animation:spin 18s linear infinite}
+  .orb::after{content:"";position:absolute;inset:-30px;border-radius:50%;background:radial-gradient(circle,rgba(139,108,255,.45),transparent 65%);animation:breathe 3s ease-in-out infinite}
+  .orb img{position:relative;z-index:1;width:116px;height:116px;border-radius:30px;box-shadow:0 0 0 1px rgba(232,195,106,.7),0 14px 40px rgba(0,0,0,.5);animation:pop .9s ease-out both}
+  #splash h1{margin:14px 0 0;font-size:28px;font-weight:700;color:var(--gold);letter-spacing:.5px;text-shadow:0 0 18px rgba(232,195,106,.4)}
+  #splash p{margin:0;font-size:16px;color:var(--mist)}
+  .bar{width:150px;height:5px;background:rgba(255,255,255,.12);border-radius:4px;overflow:hidden;position:relative;margin-top:10px}
+  .bar i{position:absolute;left:0;width:52px;height:100%;background:linear-gradient(90deg,transparent,var(--gold),transparent);border-radius:4px;animation:bar 1.3s infinite linear;will-change:transform}
+  #tip{min-height:22px;font-size:14px;color:var(--mist)}
+  @keyframes bar{from{transform:translateX(-52px)}to{transform:translateX(150px)}}
+  @keyframes pop{from{transform:scale(.6);opacity:0}to{transform:scale(1);opacity:1}}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  @keyframes breathe{50%{transform:scale(1.12);opacity:.7}}
+  @keyframes tw{50%{opacity:1;transform:scale(1.5)}}
+
+  /* ---------- Full-screen messages ---------- */
+  .msg{position:fixed;inset:0;z-index:80;display:none;flex-direction:column;align-items:center;justify-content:center;gap:12px;text-align:center;padding:28px}
+  body.off #offline,body.slow:not(.off) #slow{display:flex}
+  #loggedout{z-index:150} body.loggedout #loggedout{display:flex}
+  #inapp{z-index:200} body.inapp #inapp{display:flex}
+  .msg>img{position:relative;width:84px;height:84px;border-radius:22px;box-shadow:0 0 0 1px rgba(232,195,106,.6),0 0 30px rgba(139,108,255,.5)}
+  .msg h3{margin:6px 0 0;font-size:22px;color:var(--gold)}
+  .msg p{margin:0;font-size:17px;color:var(--mist);line-height:1.55;max-width:340px}
+  .ol{margin:0;padding:0 0 0 22px;text-align:left;font-size:17px;color:var(--ivory);line-height:1.9;max-width:340px}
+  .big{min-height:54px;padding:0 32px;border:0;border-radius:16px;background:linear-gradient(180deg,#f3d889,var(--gold-d));color:#241a05;font-weight:700;font-size:18px;cursor:pointer;box-shadow:0 8px 24px rgba(232,195,106,.3);transition:transform .1s}
+  .big:active{transform:scale(.97)}
+  .link{color:var(--gold);font-size:16px;font-weight:600;text-decoration:underline;padding:10px}
+
+  /* ---------- Install sheet ---------- */
+  #scrim{position:fixed;inset:0;z-index:90;background:rgba(5,5,25,.62);opacity:0;visibility:hidden;transition:opacity .3s,visibility .3s}
+  #sheet{position:fixed;left:0;right:0;bottom:0;z-index:100;margin:0 auto;max-width:480px;border-radius:26px 26px 0 0;
+    background:linear-gradient(180deg,#221c5e 0%,var(--indigo) 100%);border:1px solid rgba(232,195,106,.45);border-bottom:0;
+    padding:24px 22px calc(20px + var(--sab));box-shadow:0 -14px 44px rgba(0,0,0,.55);transform:translateY(105%);transition:transform .4s cubic-bezier(.2,.8,.2,1)}
+  body.sheet-open #sheet{transform:none} body.sheet-open #scrim{opacity:1;visibility:visible}
+  .head{display:flex;gap:14px;align-items:center}
+  .head img{width:64px;height:64px;border-radius:17px;box-shadow:0 0 0 1px rgba(232,195,106,.6),0 0 18px rgba(139,108,255,.5)}
+  .head h2{margin:0;font-size:20px;color:var(--gold)}
+  .head p{margin:4px 0 0;font-size:15px;color:var(--mist);line-height:1.45}
+  #ios-steps{display:none;margin:16px 0 0;padding:0 0 0 22px;font-size:16px;color:var(--ivory);line-height:2}
+  #ios-steps svg{width:20px;height:20px;vertical-align:-4px;stroke:var(--gold)}
+  body.ios #ios-steps{display:block}
+  .btns{display:flex;gap:10px;margin-top:20px}
+  .btns button{flex:1;height:54px;border-radius:16px;font-weight:700;font-size:17px;border:0;cursor:pointer;transition:transform .1s}
+  .btns button:active{transform:scale(.97)}
+  #btn-cancel{background:rgba(255,255,255,.1);color:var(--ivory)}
+  #btn-install{background:linear-gradient(180deg,#f3d889,var(--gold-d));color:#241a05;box-shadow:0 6px 18px rgba(232,195,106,.3)}
+
+  /* ---------- Toast ---------- */
+  #toast{position:fixed;left:12px;right:12px;bottom:calc(16px + var(--sab));z-index:120;max-width:456px;margin:0 auto;display:flex;align-items:center;gap:12px;
+    background:#221c5e;border:1px solid rgba(232,195,106,.5);color:var(--ivory);border-radius:16px;padding:12px 12px 12px 18px;font-size:16px;box-shadow:0 10px 30px rgba(0,0,0,.5);
+    transform:translateY(150%);transition:transform .4s cubic-bezier(.2,.8,.2,1)}
+  #toast.show{transform:none} #toast span{flex:1}
+  #toast button{min-height:44px;padding:0 18px;border:0;border-radius:12px;background:var(--gold);color:#241a05;font-weight:700;font-size:16px;cursor:pointer}
+
+  @media (prefers-reduced-motion:reduce){*{animation-duration:.01s!important;animation-iteration-count:1!important;transition-duration:.01s!important}}
+</style>
+</head>
+<body>
+
+<div id="app">
+  <header id="bar">
+    <img src="icon-192.png" alt="">
+    <div class="t">
+      <b>Lucky Draw</b>
+      <small><i id="dot"></i><span id="status">ออนไลน์</span></small>
+    </div>
+    <button class="ib" id="btn-inst-top" aria-label="ติดตั้งแอป" title="ติดตั้งแอป">
+      <svg viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg>
+    </button>
+    <button class="ib" id="btn-refresh" aria-label="รีเฟรช" title="รีเฟรช">
+      <svg viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-2.6-6.4M21 4v5h-5"/></svg>
+    </button>
+  </header>
+  <div id="stage">
+    <iframe id="frame" title="Lucky Draw"
+      allow="camera *; microphone *; geolocation *; clipboard-read *; clipboard-write *; fullscreen *; autoplay *"
+      src="https://script.google.com/macros/s/AKfycbwRJwuiE5RTYdAWB7dMN9HDy5_KypNop6vENxrTzK-pmLKMkekgKtulu39Wd2XJjHM/exec"></iframe>
+  </div>
+</div>
+
+<div id="splash" class="sky">
+  <div class="stars"></div>
+  <div class="orb"><img src="icon-512.png" alt="Lucky Draw"></div>
+  <h1>Lucky Draw</h1>
+  <p>มนต์ขลังแห่งโชค · โปร่งใส ตรวจสอบได้</p>
+  <div class="bar"><i></i></div>
+  <div id="tip"></div>
+</div>
+
+<div id="offline" class="msg sky">
+  <div class="stars"></div>
+  <img src="icon-192.png" alt="">
+  <h3>ไม่มีสัญญาณอินเทอร์เน็ต</h3>
+  <p>กรุณาตรวจสอบสัญญาณมือถือหรือ Wi-Fi แล้วกดปุ่มด้านล่างเพื่อลองใหม่</p>
+  <button class="big" id="btn-retry">ลองใหม่อีกครั้ง</button>
+</div>
+
+<div id="slow" class="msg sky">
+  <div class="stars"></div>
+  <img src="icon-192.png" alt="">
+  <h3>กำลังโหลดช้ากว่าปกติ</h3>
+  <p>สัญญาณอาจไม่ค่อยดี กรุณารอสักครู่ หรือกดลองใหม่อีกครั้ง</p>
+  <button class="big" id="btn-slow-retry">ลองใหม่อีกครั้ง</button>
+  <a class="link" id="btn-open-tab" target="_blank" rel="noopener">เปิดในเบราว์เซอร์</a>
+</div>
+
+<div id="inapp" class="msg sky">
+  <div class="stars"></div>
+  <img src="icon-192.png" alt="">
+  <h3>กรุณาเปิดด้วยเบราว์เซอร์หลัก</h3>
+  <p>หน้านี้เปิดอยู่ในแอปอื่น (เช่น LINE/Facebook) จึงติดตั้งแอปไม่ได้ และบางฟังก์ชันอาจใช้งานไม่ครบ</p>
+  <ol class="ol">
+    <li>แตะ <b>⋯</b> หรือไอคอนเบราว์เซอร์ที่มุมจอ</li>
+    <li>เลือก <b>เปิดใน Safari</b> (iPhone) หรือ <b>เปิดใน Chrome</b> (Android)</li>
+  </ol>
+  <button class="big" id="btn-copy">คัดลอกลิงก์</button>
+  <a class="link" id="btn-inapp-skip" href="#">ใช้งานต่อในหน้านี้</a>
+</div>
+
+<div id="loggedout" class="msg sky">
+  <div class="stars"></div>
+  <img src="icon-192.png" alt="">
+  <h3>ออกจากระบบแล้ว</h3>
+  <p>ล้างข้อมูลออกจากหน้าจอเรียบร้อยแล้ว</p>
+  <p id="closeHint" style="font-size:16px"></p>
+  <button class="big" id="btn-relogin">เข้าใช้งานอีกครั้ง</button>
+</div>
+
+<div id="scrim"></div>
+<div id="sheet" role="dialog" aria-labelledby="sheet-title">
+  <div class="head">
+    <img src="icon-192.png" alt="">
+    <div>
+      <h2 id="sheet-title">ติดตั้งแอป Lucky Draw</h2>
+      <p id="sheet-desc">เปิดได้ทันทีจากหน้าจอหลัก เต็มจอ ใช้งานง่ายเหมือนแอปในมือถือ</p>
+    </div>
+  </div>
+  <ol id="ios-steps">
+    <li>แตะปุ่มแชร์
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3M8 7l4-4 4 4M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg>
+      (อยู่แถบล่าง หรือในเมนู ⋯ ของ Safari/Chrome)</li>
+    <li>เลือก <b>เพิ่มไปยังหน้าจอโฮม</b> (Add to Home Screen) — ถ้าไม่เห็น ให้เลื่อนลงหรือแตะ <b>ดูเพิ่มเติม</b></li>
+    <li>แตะ <b>เพิ่ม</b> (Add)</li>
+  </ol>
+  <div class="btns">
+    <button id="btn-cancel">ไว้ทีหลัง</button>
+    <button id="btn-install">ติดตั้งเลย</button>
+  </div>
+</div>
+
+<div id="toast" role="status"><span>มีเวอร์ชันใหม่พร้อมใช้งาน</span><button id="btn-update">อัปเดต</button></div>
+
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const body = document.body, frame = $('frame'), splash = $('splash');
+  const APP_URL = frame.getAttribute('src');
+  const KEY = 'lucky-draw-install-dismissed', WEEK = 7 * 864e5;
+  const standalone = matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+  const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  let deferred = null;
+  $('btn-open-tab').href = APP_URL;
+
+  /* ดาวระยิบระยับ */
+  document.querySelectorAll('.stars').forEach(s => {
+    for (let i = 0; i < 28; i++) {
+      const e = document.createElement('i');
+      e.style.cssText = `left:${Math.random()*100}%;top:${Math.random()*100}%;animation-delay:${(Math.random()*3.2).toFixed(2)}s;transform:scale(${(.6+Math.random()).toFixed(2)})`;
+      s.appendChild(e);
+    }
+  });
+
+  /* เบราว์เซอร์ในแอป (LINE / Facebook / IG ฯลฯ) ติดตั้งไม่ได้ */
+  const ua = navigator.userAgent;
+  const inApp = !standalone && /Line\/|FBAN|FBAV|FB_IAB|Instagram|MicroMessenger|TikTok|Twitter/i.test(ua);
+  if (inApp) {
+    if (/Line\//i.test(ua) && !/[?&]openExternalBrowser=1/.test(location.search)) {
+      location.replace(location.pathname + (location.search ? location.search + '&' : '?') + 'openExternalBrowser=1' + location.hash);
+    }
+    body.classList.add('inapp');
+    $('btn-inapp-skip').onclick = e => { e.preventDefault(); body.classList.remove('inapp'); };
+    $('btn-copy').onclick = async () => {
+      const url = location.origin + location.pathname;
+      try { await navigator.clipboard.writeText(url); $('btn-copy').textContent = 'คัดลอกแล้ว ✓'; }
+      catch (e) { prompt('คัดลอกลิงก์นี้ไปเปิดในเบราว์เซอร์', url); }
+    };
+  }
+
+  /* ข้อความระหว่างรอโหลด */
+  const tips = ['กำลังเตรียมมนต์ขลังให้คุณ…', 'ทุกการจับสลากโปร่งใส ตรวจสอบได้', 'แตะปุ่มรีเฟรชด้านบนเพื่อดึงข้อมูลล่าสุด'];
+  let ti = 0; const tipEl = $('tip'); tipEl.textContent = tips[0];
+  const tipTimer = setInterval(() => { tipEl.textContent = tips[++ti % tips.length]; }, 2200);
+
+  /* Splash + ตรวจโหลดช้า */
+  const t0 = Date.now();
+  let shown = false, ready = false, wantOffer = false, slowTimer = null;
+  const reveal = () => {
+    if (shown) return; shown = true;
+    clearTimeout(slowTimer); body.classList.remove('slow'); clearInterval(tipTimer);
+    setTimeout(() => {
+      frame.classList.add('on'); splash.classList.add('out');
+      setTimeout(() => { splash.remove(); ready = true; if (wantOffer) setTimeout(open, 400); }, 700);
+    }, Math.max(0, 1200 - (Date.now() - t0)));
+  };
+  const armSlow = () => { clearTimeout(slowTimer); slowTimer = setTimeout(() => { if (!frame.classList.contains('on') || !shown) body.classList.add('slow'); }, 12000); };
+  frame.addEventListener('load', () => { clearTimeout(slowTimer); body.classList.remove('slow'); reveal(); });
+  setTimeout(() => { if (!shown) reveal(); }, 8000);
+  armSlow();
+
+  const reload = () => {
+    body.classList.remove('slow');
+    const b = $('btn-refresh'); b.classList.remove('spin'); void b.offsetWidth; b.classList.add('spin');
+    frame.src = APP_URL; armSlow();
+  };
+  $('btn-refresh').onclick = reload;
+  $('btn-slow-retry').onclick = reload;
+
+  /* สะพาน postMessage กับ Apps Script (ปุ่มออกจากระบบ) — รองรับทั้ง app-logout และ edoc-logout */
+  const GOOGLE_ORIGIN = /^https:\/\/([a-z0-9-]+\.)*(googleusercontent\.com|google\.com)$/i;
+  addEventListener('message', e => {
+    if (!GOOGLE_ORIGIN.test(e.origin) && e.origin !== 'null') return;
+    const d = e.data || {};
+    if (d.type === 'app-logout' || d.type === 'edoc-logout') {
+      try { e.source.postMessage({ type: 'app-pwa-ack' }, e.origin === 'null' ? '*' : e.origin); } catch (_) {}
+      body.classList.remove('slow'); clearTimeout(slowTimer);
+      frame.classList.remove('on'); frame.src = 'about:blank';
+      body.classList.add('loggedout');
+      $('closeHint').textContent = isIOS
+        ? 'ปิดแอป: ปัดขึ้นจากขอบล่างจอค้างไว้ แล้วปัดแอปนี้ขึ้น'
+        : 'ปิดแอป: กดปุ่มสลับแอป (หรือปัดขึ้นค้างไว้) แล้วปัดแอปนี้ทิ้ง';
+      setTimeout(() => { try { window.close(); } catch (_) {} }, 300);
+    }
+  });
+  $('btn-relogin').onclick = () => { body.classList.remove('loggedout'); frame.classList.add('on'); reload(); };
+
+  /* Offline */
+  const net = () => { body.classList.toggle('off', !navigator.onLine); $('status').textContent = navigator.onLine ? 'ออนไลน์' : 'ออฟไลน์'; };
+  addEventListener('online', () => { net(); if (!body.classList.contains('loggedout')) reload(); });
+  addEventListener('offline', net); net();
+  $('btn-retry').onclick = () => { if (navigator.onLine) { body.classList.remove('off'); net(); reload(); } };
+
+  /* Install sheet (Android/Chrome = ปุ่มติดตั้งจริง, iOS = คำแนะนำ 3 ขั้นตอน) */
+  const dismissed = () => { try { return Date.now() - (+localStorage.getItem(KEY) || 0) < WEEK; } catch (e) { return false; } };
+  const remember = () => { try { localStorage.setItem(KEY, Date.now()); } catch (e) {} };
+  const open = () => body.classList.add('sheet-open');
+  const close = () => body.classList.remove('sheet-open');
+  const offer = () => { if (ready) setTimeout(open, 400); else wantOffer = true; };
+
+  addEventListener('beforeinstallprompt', e => {
+    e.preventDefault(); deferred = e;
+    if (!standalone) { body.classList.add('can-install'); if (!dismissed()) offer(); }
+  });
+  $('btn-inst-top').onclick = open;
+  $('btn-install').onclick = async () => {
+    if (deferred) {
+      close(); deferred.prompt();
+      const { outcome } = await deferred.userChoice;
+      if (outcome !== 'accepted') remember();
+      deferred = null; body.classList.remove('can-install');
+    } else { remember(); close(); }
+  };
+  $('btn-cancel').onclick = () => { remember(); close(); };
+  $('scrim').onclick = () => { remember(); close(); };
+  addEventListener('appinstalled', () => { close(); deferred = null; body.classList.remove('can-install'); try { localStorage.removeItem(KEY); } catch (e) {} });
+
+  if (isIOS && !standalone && !inApp) {
+    body.classList.add('ios', 'can-install');
+    $('sheet-desc').textContent = 'iPhone/iPad ติดตั้งผ่านเมนูแชร์ของเบราว์เซอร์ ตามขั้นตอนนี้';
+    $('btn-install').textContent = 'เข้าใจแล้ว';
+    if (!dismissed()) offer();
+  }
+
+  /* Service Worker + แจ้งอัปเดต */
+  if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
+    addEventListener('load', () => {
+      navigator.serviceWorker.register('sw.js').then(reg => {
+        const prompt = w => { $('toast').classList.add('show'); $('btn-update').onclick = () => w.postMessage('SKIP_WAITING'); };
+        if (reg.waiting && navigator.serviceWorker.controller) prompt(reg.waiting);
+        reg.addEventListener('updatefound', () => {
+          const w = reg.installing;
+          w && w.addEventListener('statechange', () => { if (w.state === 'installed' && navigator.serviceWorker.controller) prompt(w); });
+        });
+        setInterval(() => reg.update().catch(() => {}), 60 * 60 * 1000);
+      }).catch(() => {});
+    });
+    const hadController = !!navigator.serviceWorker.controller;
+    let reloading = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (!hadController || reloading) return; reloading = true; location.reload();
+    });
+  }
+})();
+</script>
+</body>
+</html>
